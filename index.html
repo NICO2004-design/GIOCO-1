@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>MISSION CONTROL — BLACKOUT</title>
+    <!-- Supporto Schermo Intero per iPadOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Blackout">
+    <style>
+        :root {
+            --bg-color: #070b0d;
+            --panel-bg: #0b1012;
+            --accent-green: #00ff88;
+            --accent-red: #ff3333;
+            --text-color: #d7e0e3;
+            --border-color: #243237;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Consolas', 'Courier New', Courier, monospace;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .screen {
+            display: none;
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        /* Input e Bottoni */
+        input[type="text"], input[type="password"] {
+            background-color: #050708;
+            color: var(--accent-green);
+            border: 1px solid var(--accent-green);
+            padding: 12px;
+            font-size: 20px;
+            font-family: inherit;
+            text-align: center;
+            outline: none;
+            width: 280px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            background-color: #111a1e;
+            color: var(--accent-green);
+            border: 1px solid var(--accent-green);
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:active {
+            background-color: #173329;
+        }
+
+        /* Schermata Accesso */
+        .top-bar-settings {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .timer-display {
+            font-size: 48px;
+            font-weight: bold;
+            color: var(--accent-red);
+            margin: 15px 0;
+        }
+
+        /* Schermata Missione (Layout a 3 Colonne) */
+        .mission-container {
+            display: flex;
+            width: 100%;
+            height: calc(100vh - 100px);
+            gap: 15px;
+        }
+
+        .mission-header {
+            width: 100%;
+            background-color: #0d1417;
+            border: 1px solid var(--border-color);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .panel-left { flex: 4; }
+        .panel-center { flex: 4; justify-content: space-between; }
+        .panel-right { flex: 2; align-items: flex-start; }
+
+        /* Canvas per Grafica */
+        canvas {
+            background-color: #030506;
+            border: 1px solid var(--border-color);
+            width: 100%;
+            height: 100%;
+            max-height: 400px;
+        }
+
+        .status-list {
+            color: var(--accent-green);
+            line-height: 2;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SCHERMATA INIZIALE -->
+    <div id="screen-access" class="screen active">
+        <div class="top-bar-settings">
+            <button onclick="cambiaCodice()">⚙ CODICE</button>
+            <button onclick="cambiaFrase()">⚙ FRASE</button>
+        </div>
+        <h1>CENTRO COMANDO</h1>
+        <h2 style="color: var(--accent-green);">OPERAZIONE BLACKOUT</h2>
+        <h3 style="color: var(--accent-red);">⚠ SISTEMA BLOCCATO ⚠</h3>
+        <div>TEMPO RESIDUO</div>
+        <div id="timer-access" class="timer-display">20:00</div>
+        <button id="btn-start" onclick="avviaMissione()" style="margin-bottom: 20px; padding: 15px 30px;">▶ START MISSIONE</button>
+        <div>INSERIRE CODICE DI AUTORIZZAZIONE</div>
+        <input type="password" id="input-codice" maxlength="4" placeholder="CODICE">
+        <button onclick="verificaCodice()">AUTORIZZA ACCESSO</button>
+    </div>
+
+    <!-- SCHERMATA MISSIONE -->
+    <div id="screen-mission" class="screen" style="justify-content: flex-start;">
+        <div class="mission-header">
+            <span style="color: var(--accent-green); font-size: 20px; font-weight: bold;">● OPERAZIONE BLACKOUT</span>
+            <span id="timer-mission" style="color: var(--accent-red); font-size: 24px; font-weight: bold;">20:00</span>
+            <span style="color: var(--accent-red); font-weight: bold;">STATO: EMERGENZA</span>
+        </div>
+        <div class="mission-container">
+            <div class="panel panel-left">
+                <h3 style="color: var(--accent-red); margin-top: 0;">SISTEMA ATTIVO</h3>
+                <canvas id="deviceCanvas"></canvas>
+            </div>
+            <div class="panel panel-center">
+                <h3 style="color: var(--accent-green); margin-top: 0;">OBIETTIVO DELLA MISSIONE</h3>
+                <p style="text-align: center;">IL DISPOSITIVO È ARMATO.<br><br>INSERIRE PASSWORD PER DISATTIVARE IL DISPOSITIVO.</p>
+                <div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
+                    <input type="text" id="input-frase" placeholder="PASSWORD">
+                    <button onclick="verificaFrase()">CONFERMA DISATTIVAZIONE</button>
+                </div>
+            </div>
+            <div class="panel panel-right">
+                <h3 style="color: var(--accent-green); margin-top: 0;">STATO SISTEMA</h3>
+                <div class="status-list">
+                    ● ALIMENTAZIONE ONLINE<br>
+                    ● COMUNICAZIONE ONLINE<br>
+                    ● SICUREZZA ATTIVA<br>
+                    ● SISTEMA ATTIVO
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCHERMATA SUCCESSO -->
+    <div id="screen-success" class="screen">
+        <h1 style="color: var(--accent-green);">✓ MISSIONE COMPLETATA ✓</h1>
+        <p style="text-align: center; font-size: 18px;">PASSWORD ACCETTATA<br><br>SISTEMA DISATTIVATO<br><br>OBIETTIVO RAGGIUNTO</p>
+        <button onclick="resetMissione()">↻ NUOVA MISSIONE</button>
+    </div>
+
+    <!-- SCHERMATA FALLIMENTO -->
+    <div id="screen-failure" class="screen">
+        <h1 style="color: var(--accent-red);">✕ TEMPO ESAURITO ✕</h1>
+        <p style="text-align: center; font-size: 18px;">MISSIONE FALLITA<br><br>TEMPO DELLA SIMULAZIONE TERMINATO</p>
+        <button onclick="resetMissione()" style="border-color: var(--accent-red); color: var(--accent-red);">↻ NUOVA MISSIONE</button>
+    </div>
+
+    <script>
+        // Stato Applicazione
+        let codice = "1234";
+        let frase = "LOLLO";
+        let tempo = 20 * 60;
+        let timerInterval = null;
+        let missioneAvviata = false;
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            if (id === 'screen-mission') drawDevice();
+        }
+
+        function aggiornaTimerDisplay() {
+            let m = Math.floor(tempo / 60).toString().padStart(2, '0');
+            let s = (tempo % 60).toString().padStart(2, '0');
+            let text = `${m}:${s}`;
+            document.getElementById('timer-access').innerText = text;
+            document.getElementById('timer-mission').innerText = text;
+        }
+
+        function avviaMissione() {
+            if (missioneAvviata) return;
+            missioneAvviata = true;
+            tempo = 20 * 60;
+            aggiornaTimerDisplay();
+            
+            document.getElementById('btn-start').innerText = "● MISSIONE IN CORSO";
+            document.getElementById('btn-start').disabled = true;
+
+            timerInterval = setInterval(() => {
+                tempo--;
+                aggiornaTimerDisplay();
+                if (tempo <= 0) {
+                    clearInterval(timerInterval);
+                    showScreen('screen-failure');
+                }
+            }, 1000);
+        }
+
+        function cambiaCodice() {
+            if (missioneAvviata) return;
+            let val = prompt("Inserisci nuovo codice (4 cifre):", codice);
+            if (val && /^\d{4}$/.test(val)) {
+                codice = val;
+                alert("Codice aggiornato!");
+            } else if (val) {
+                alert("Il codice deve contenere esattamente 4 cifre.");
+            }
+        }
+
+        function cambiaFrase() {
+            if (missioneAvviata) return;
+            let val = prompt("Inserisci nuova frase:", frase);
+            if (val && val.trim() !== "") {
+                frase = val.trim().toUpperCase();
+                alert("Frase aggiornata!");
+            }
+        }
+
+        function verificaCodice() {
+            if (!missioneAvviata) {
+                alert("PREMI START PRIMA");
+                return;
+            }
+            let input = document.getElementById('input-codice').value;
+            if (input === codice) {
+                showScreen('screen-mission');
+            } else {
+                alert("CODICE ERRATO");
+                document.getElementById('input-codice').value = "";
+            }
+        }
+
+        function verificaFrase() {
+            let input = document.getElementById('input-frase').value.trim().toUpperCase();
+            if (input === frase) {
+                clearInterval(timerInterval);
+                showScreen('screen-success');
+            } else {
+                alert("PASSWORD ERRATA");
+                document.getElementById('input-frase').value = "";
+            }
+        }
+
+        function resetMissione() {
+            clearInterval(timerInterval);
+            tempo = 20 * 60;
+            missioneAvviata = false;
+            aggiornaTimerDisplay();
+            document.getElementById('btn-start').innerText = "▶ START MISSIONE";
+            document.getElementById('btn-start').disabled = false;
+            document.getElementById('input-codice').value = "";
+            document.getElementById('input-frase').value = "";
+            showScreen('screen-access');
+        }
+
+        // Render Canvas Grafica Dispositivo
+        function drawDevice() {
+            const canvas = document.getElementById('deviceCanvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+
+            const w = canvas.width;
+            const h = canvas.height;
+
+            // Griglia
+            ctx.strokeStyle = "#16282e";
+            ctx.lineWidth = 1;
+            for(let x=0; x<w; x+=25) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+            for(let y=0; y<h; y+=25) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+
+            // Corpo
+            ctx.fillStyle = "#171d20";
+            ctx.strokeStyle = "#68767b";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.roundRect(w*0.2, h*0.2, w*0.6, h*0.6, 20);
+            ctx.fill();
+            ctx.stroke();
+
+            // Display
+            ctx.fillStyle = "#020807";
+            ctx.strokeStyle = "#00cc66";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(w*0.3, h*0.3, w*0.4, h*0.2, 5);
+            ctx.fill();
+            ctx.stroke();
+
+            // Testo Display
+            ctx.fillStyle = "#00ff88";
+            ctx.font = "bold 16px Consolas";
+            ctx.textAlign = "center";
+            ctx.fillText("SYSTEM ACTIVE", w/2, h*0.3 + 25);
+
+            // Simbolo
+            ctx.fillStyle = "#ff3333";
+            ctx.font = "bold 40px Arial";
+            ctx.fillText("☢", w/2, h*0.7);
+        }
+    </script>
+</body>
+</html>
